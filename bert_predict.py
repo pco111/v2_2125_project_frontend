@@ -28,8 +28,6 @@ def eval_one(model, tokenizer, contract):
     c = Counter(predicted_class.cpu().numpy().tolist())
     most_commons = c.most_common(2)
     first = most_commons[0][0]
-    if first == 0 and most_commons[0][1] < len(predicted_class.cpu().numpy().tolist()):
-        return most_commons[1][0]
 
     return first
 

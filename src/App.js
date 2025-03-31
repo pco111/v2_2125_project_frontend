@@ -182,7 +182,7 @@ const App = () => {
     } else {
       // Use BERT for prediction (existing logic)
       try {
-        const response = await fetch('http://localhost:5992/predict', {
+        const response = await fetch('http://localhost:5995/predict', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -249,7 +249,7 @@ const App = () => {
         await runGeminiTest();
       } else {
         setTyping(true);
-        const cleanedContract = removeCommentsAndBlankLines(val); // Clean the user input contract
+        const cleanedContract = val; // Clean the user input contract
         const mlResponse = await callMlModel(cleanedContract, selectedModel);
         setTimeout(() => {
           appendMsg({

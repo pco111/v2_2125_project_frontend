@@ -2,7 +2,7 @@ const express = require('express');
 const { exec } = require('child_process');
 const cors = require('cors');
 const app = express();
-const port = 5992;
+const port = 5995;
 
 app.use(cors());
 app.use(express.json());
@@ -18,7 +18,9 @@ app.post('/predict', (req, res) => {
       return res.status(500).json({ prediction: `Python error: ${stderr}` });
     }
     const prediction = stdout.trim();
-    res.json({ prediction });
+    res.json({ prediction: prediction });
+
+    console.log(`Prediction: "${prediction}" with model: ${model}`);
   });
 });
 
