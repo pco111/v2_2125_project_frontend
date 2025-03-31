@@ -24,8 +24,14 @@ def eval_one(model, tokenizer, contract):
         logits = outputs.logits
         predicted_class = logits.argmax(dim=1)
         
+    from collections import Counter
     c = Counter(predicted_class.cpu().numpy().tolist())
-    return c.most_common(1)[0][0]
+    most_commons = c.most_common(2)
+    first = most_commons[0][0]
+    if first == 0 and most_commons[0][1] < len(predicted_class.cpu().numpy().tolist()):
+        return most_commons[1][0]
+
+    return first
 
 if __name__ == "__main__":
     try:
@@ -35,7 +41,7 @@ if __name__ == "__main__":
         
         # Load the tokenizer and model in the new way
         tokenizer = RobertaTokenizer.from_pretrained("microsoft/codebert-base")
-        model = RobertaForSequenceClassification.from_pretrained("models/CodeBERT-solidifi_ver_Mar_27_2025_15_epoch_0.001_cls_lr_5e-06_r_lr").to(DEVICE)
+        model = RobertaForSequenceClassification.from_pretrained("models/CodeBERT-solidifi_final").to(DEVICE)
         model.eval()
 
         # Get the query (contract code) from command-line arguments

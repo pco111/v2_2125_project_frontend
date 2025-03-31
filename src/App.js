@@ -66,7 +66,7 @@ const jsonString = JSON.stringify(promptingData, null, 2); // Pretty-print for r
 // Load the test data
 const testData = require('./assets/clean_var_replaced_test_data.json'); // Adjust the path as needed
 
-// Define the new Gemini prompt
+// Define the new Gemini prompt with Chain of Thought instructions
 const geminiPrompt = `
 You are a Solidity security auditor. Below are some example smart contracts showing the contract source code and bug type in JSON format.
 Each sub-json object is an instance with the following information:
@@ -77,11 +77,20 @@ There are only eight bug types: correct, Overflow-Underflow, Re-entrancy, TOD, T
 Use these to educate yourself, and be prepared to give classification results on new contracts.
 Those contracts will only have the buggy_contract information when we ask you to classify them.
 
+Chain of Thought Instructions:
+To classify a contract, follow these steps:
+1. Analyze the contract code structure (e.g., functions, variables, control flow).
+2. Identify potential vulnerability patterns (e.g., unchecked calls, timestamp usage, etc.).
+3. Compare findings with the known vulnerability types.
+4. Conclude with the most likely bug type based on your analysis.
+
 ${jsonString}
 
 Now classify the following contract:
 [CONTRACT]
+
 Answer in format: Bug type: [BUG TYPE]
+For example, your answer should look like this: Bug type: Re-entrancy
 `;
 
 // Function to remove comments and blank lines from the contract code
@@ -118,39 +127,58 @@ const App = () => {
 
   async function callMlModel(query, model) {
     if (model === 'gemini') {
-      // Use Gemini API for prediction with the new prompt
-      try {
-        // Replace [CONTRACT] placeholder with the actual query
-        const finalPrompt = geminiPrompt.replace('[CONTRACT]', query);
-        const response = await axios.post(
-          'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
-          {
-            contents: [
-              {
-                parts: [
-                  {
-                    text: finalPrompt,
-                  },
-                ],
-              },
-            ],
-          },
-          {
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            params: {
-              key: "AIzaSyBUjX-8vwse6a9rnqSNVboRO8ojcvh-dDk",
-            },
-          }
-        );
+      // Use Gemini API for prediction with the new COT prompt
+      const MAX_RETRIES = 3;
+      let retries = 0;
+      let pred = 'UNKNOWN';
 
-        const rawPrediction = response.data.candidates[0].content.parts[0].text.trim();
-        return rawPrediction || 'Unknown Vulnerability';
-      } catch (error) {
-        console.error('Error calling Gemini API:', error);
-        return 'Error: Could not get prediction from Gemini';
+      while (retries < MAX_RETRIES) {
+        try {
+          // Replace [CONTRACT] placeholder with the actual query
+          const finalPrompt = geminiPrompt.replace('[CONTRACT]', query);
+          const response = await axios.post(
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+            {
+              contents: [
+                {
+                  parts: [
+                    {
+                      text: finalPrompt,
+                    },
+                  ],
+                },
+              ],
+            },
+            {
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              params: {
+                key: "AIzaSyBUjX-8vwse6a9rnqSNVboRO8ojcvh-dDk",
+              },
+            }
+          );
+
+          const output = response.data.candidates[0].content.parts[0].text.trim();
+          if (output.includes("Bug type:")) {
+            pred = output.split("Bug type:")[1].split("\n")[0].trim();
+          } else {
+            pred = "UNKNOWN";
+          }
+          break; // Success, exit retry loop
+        } catch (error) {
+          console.error(`⚠️ Error calling Gemini API (attempt ${retries + 1}/${MAX_RETRIES}):`, error);
+          retries++;
+          if (retries < MAX_RETRIES) {
+            console.log(`⏳ Sleeping 30 seconds before retrying...`);
+            await new Promise(resolve => setTimeout(resolve, 30000)); // Sleep for 30 seconds
+          } else {
+            console.error(`❌ Max retries reached. Returning default prediction.`);
+            pred = "Error: Max retries reached for Gemini API";
+          }
+        }
       }
+      return `Bug type: ${pred}`;
     } else {
       // Use BERT for prediction (existing logic)
       try {
